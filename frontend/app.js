@@ -45,6 +45,93 @@ function isZeroAddress(addr) {
   return !addr || addr.toLowerCase() === "0x0000000000000000000000000000000000000000";
 }
 
+// ---- Itibar (reputation): tamamen JobApproved/JobCancelled event'lerinden turetilir ----
+//
+// Job listesi reputasyon sorgularini HIC beklemez - rozetler arka planda, sirayla
+// (rate-limit'e takilmamak icin) yuklenir ve DOM'a hazir olduklarinda islenir. Bir adresin
+// sorgusu basarisiz olursa (orn. public RPC rate limit) sadece o rozet "bilinmiyor" gosterir,
+// geri kalan hicbir sey bundan etkilenmez.
+
+const reputationCache = new Map();
+
+async function fetchReputation(address) {
+  const contract = await getReadOnlyContract();
+  const fromBlock = CONFIG.escrowDeployBlock;
+
+  const employerCompleted = await contract.queryFilter(contract.filters.JobApproved(null, address), fromBlock);
+  const employerCancelled = await contract.queryFilter(contract.filters.JobCancelled(null, address), fromBlock);
+  const workerCompleted = await contract.queryFilter(contract.filters.JobApproved(null, null, address), fromBlock);
+
+  return {
+    employerCompleted: employerCompleted.length,
+    employerCancelled: employerCancelled.length,
+    workerCompleted: workerCompleted.length,
+  };
+}
+
+function repText(rep, role) {
+  if (!rep) return "...";
+  if (role === "employer") {
+    const total = rep.employerCompleted + rep.employerCancelled;
+    return total === 0 ? "yeni" : `${rep.employerCompleted}/${total} tamamlandi`;
+  }
+  return rep.workerCompleted === 0 ? "yeni" : `${rep.workerCompleted} is tamamladi`;
+}
+
+function repBadgeHtml(address, role) {
+  const key = address.toLowerCase();
+  return `<span class="rep-badge" data-rep-addr="${key}" data-rep-role="${role}">${repText(
+    reputationCache.get(key),
+    role
+  )}</span>`;
+}
+
+/// Verilen adresleri arka planda, sirayla (paralel degil - rate limit'e takilmamak icin)
+/// yukler ve her biri tamamlandiginda ilgili DOM rozetlerini gunceller. Hata durumunda
+/// o adres icin sadece "bilinmiyor" gosterir, akisi durdurmaz.
+async function loadReputationsInBackground(addresses) {
+  for (const addr of addresses) {
+    const key = addr.toLowerCase();
+    if (reputationCache.has(key)) continue;
+    try {
+      const rep = await fetchReputation(key);
+      reputationCache.set(key, rep);
+    } catch (err) {
+      console.error(`Reputasyon alinamadi (${key}):`, err);
+      reputationCache.set(key, null);
+    }
+
+    document.querySelectorAll(`[data-rep-addr="${key}"]`).forEach((span) => {
+      const role = span.dataset.repRole;
+      const rep = reputationCache.get(key);
+      span.textContent = rep === null ? "bilinmiyor" : repText(rep, role);
+    });
+  }
+}
+
+async function refreshMyReputation() {
+  const el2 = el("myReputation");
+  if (!userAddress) {
+    el2.classList.add("hidden");
+    return;
+  }
+  try {
+    const key = userAddress.toLowerCase();
+    let rep = reputationCache.get(key);
+    if (!rep) {
+      rep = await fetchReputation(key);
+      reputationCache.set(key, rep);
+    }
+    const totalAsEmployer = rep.employerCompleted + rep.employerCancelled;
+    el2.textContent =
+      `Senin gecmisin — isveren olarak: ${rep.employerCompleted}/${totalAsEmployer} tamamlandi` +
+      ` · isci olarak: ${rep.workerCompleted} is tamamladi`;
+    el2.classList.remove("hidden");
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function loadAbi() {
   if (jobEscrowAbi) return jobEscrowAbi;
   const res = await fetch("vendor/jobescrow-abi.json");
@@ -199,6 +286,7 @@ async function connectWallet() {
 
     await refreshJobs();
     await refreshFaucetStatus();
+    await refreshMyReputation();
   } catch (err) {
     console.error(err);
     showStatus(`Baglanti hatasi: ${err.message || err}`, "error");
@@ -221,6 +309,7 @@ async function refreshJobs() {
     }
 
     const jobs = [];
+    const addressesToLookup = new Set();
     for (let i = total - 1; i >= 0; i--) {
       const job = await contract.getJob(i);
       jobs.push({
@@ -232,12 +321,17 @@ async function refreshJobs() {
         status: job.status,
         description: job.description,
       });
+      addressesToLookup.add(job.employer.toLowerCase());
+      if (!isZeroAddress(job.worker)) addressesToLookup.add(job.worker.toLowerCase());
     }
 
     jobsEmpty.classList.add("hidden");
     for (const job of jobs) {
       jobsList.appendChild(renderJobCard(job));
     }
+
+    // Reputasyon rozetleri is listesini bekletmeden, arka planda doldurulur.
+    loadReputationsInBackground([...addressesToLookup]);
   } catch (err) {
     console.error(err);
     jobsEmpty.textContent = `Isler yuklenemedi: ${err.message || err}`;
@@ -254,13 +348,19 @@ function renderJobCard(job) {
   const isFunded = statusNum === 1;
   const isDisputed = statusNum === 4;
   const hasArbiter = !isZeroAddress(job.arbiter);
+  const isOpenJob = isFunded && isZeroAddress(job.worker);
 
   const isEmployer = userAddress && userAddress.toLowerCase() === job.employer.toLowerCase();
-  const isWorker = userAddress && userAddress.toLowerCase() === job.worker.toLowerCase();
+  const isWorker = userAddress && !isZeroAddress(job.worker) && userAddress.toLowerCase() === job.worker.toLowerCase();
   const isArbiter = userAddress && hasArbiter && userAddress.toLowerCase() === job.arbiter.toLowerCase();
 
   let actionsHtml = "";
-  if (isFunded && isEmployer) {
+  if (isOpenJob && userAddress && !isEmployer) {
+    actionsHtml = `
+      <div class="job-actions">
+        <button class="btn primary small" data-action="claim" data-id="${job.id}">Bu Isi Al</button>
+      </div>`;
+  } else if (isFunded && isEmployer) {
     actionsHtml = `
       <div class="job-actions">
         <button class="btn primary small" data-action="approve" data-id="${job.id}">Onayla</button>
@@ -282,12 +382,14 @@ function renderJobCard(job) {
   div.innerHTML = `
     <div class="job-top">
       <span class="job-id">#${job.id}</span>
-      <span class="job-status status-${statusNum}">${statusLabel(statusNum)}</span>
+      <span class="job-status status-${statusNum}">${isOpenJob ? "Acik Is - Alinabilir" : statusLabel(statusNum)}</span>
     </div>
     <p class="job-desc">${job.description}</p>
     <div class="job-meta">
-      <div><span>Isveren</span><code>${shortAddr(job.employer)}</code></div>
-      <div><span>Isci</span><code>${shortAddr(job.worker)}</code></div>
+      <div><span>Isveren</span><code>${shortAddr(job.employer)}</code>${repBadgeHtml(job.employer, "employer")}</div>
+      <div><span>Isci</span><code>${isZeroAddress(job.worker) ? "acik - henuz atanmadi" : shortAddr(job.worker)}</code>${
+        isZeroAddress(job.worker) ? "" : repBadgeHtml(job.worker, "worker")
+      }</div>
       <div><span>Hakem</span><code>${hasArbiter ? shortAddr(job.arbiter) : "yok"}</code></div>
       <div><span>Miktar</span><code>${amountUsdc} USDC</code></div>
     </div>
@@ -304,6 +406,7 @@ function renderJobCard(job) {
 const ACTION_LABELS = {
   approve: "Onayla",
   cancel: "Iptal Et",
+  claim: "Bu Isi Al",
   dispute: "Anlasmazlik Ac",
   resolveWorker: "Isciye Ver",
   resolveEmployer: "Isverene Iade Et",
@@ -319,6 +422,7 @@ async function handleJobAction(action, jobId, btn) {
     let tx;
     if (action === "approve") tx = await contract.approveJob(jobId);
     else if (action === "cancel") tx = await contract.cancelJob(jobId);
+    else if (action === "claim") tx = await contract.claimJob(jobId);
     else if (action === "dispute") tx = await contract.raiseDispute(jobId);
     else if (action === "resolveWorker") tx = await contract.resolveDispute(jobId, true);
     else if (action === "resolveEmployer") tx = await contract.resolveDispute(jobId, false);
@@ -349,8 +453,9 @@ async function handleCreateJob(e) {
     showStatus("Once cuzdanini bagla.", "error");
     return;
   }
-  if (!ethers.isAddress(worker)) {
-    showStatus("Gecerli bir isci cuzdan adresi gir.", "error");
+  const workerAddr = worker === "" ? ethers.ZeroAddress : worker;
+  if (!ethers.isAddress(workerAddr)) {
+    showStatus("Isci adresi girdiysen gecerli bir adres olmali (ya da bos birakip acik is yap).", "error");
     return;
   }
   const arbiter = arbiterRaw === "" ? ethers.ZeroAddress : arbiterRaw;
@@ -377,7 +482,7 @@ async function handleCreateJob(e) {
 
     btn.textContent = "2/2 Is olusturuluyor...";
     const contract = await getWriteContract();
-    const tx = await contract.createJob(worker, arbiter, amount, description);
+    const tx = await contract.createJob(workerAddr, arbiter, amount, description);
     showStatus(`createJob gonderildi: ${tx.hash} - onay bekleniyor...`, "info");
     await tx.wait();
 

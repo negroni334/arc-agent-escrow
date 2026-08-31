@@ -8,7 +8,8 @@ const CONFIG = {
   explorerUrl: "https://testnet.arcscan.app",
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
 
-  escrowAddress: "0x2E884D26978EA9120ba21445abe1f7Fd8144a114",
+  escrowAddress: "0xCc63109fE7A09C886b8145E31bA65e1bA9EB9448",
+  escrowDeployBlock: 59842611, // reputation event sorgulari bu bloktan baslar
   faucetAddress: "0x01d7a0085C5fbb28062F80e117903356ee397a29",
   usdcAddress: "0x3600000000000000000000000000000000000000",
   usdcDecimals: 6,

@@ -27,6 +27,7 @@
         <button id="copyAddrBtn" class="btn ghost small hidden">Adresimi Kopyala</button>
       </div>
       <div id="statusMsg" class="status hidden"></div>
+      <p id="myReputation" class="hint hidden"></p>
     </header>
 
     <section class="card">
@@ -48,8 +49,8 @@
       <p class="hint">Isci/ajan cuzdan adresine, kilitlenecek USDC miktarina ve isin kisa aciklamasina karar ver. Once USDC harcama izni (approve), ardindan is olusturma islemi icin cuzdanindan iki ayri onay istenecek. Hakem adresi girersen, isveren haksiz davranirsa isci anlasmazlik acabilir ve hakem karar verebilir.</p>
       <form id="createJobForm">
         <label>
-          Isci / Ajan Cuzdan Adresi
-          <input type="text" id="workerInput" placeholder="0x..." required />
+          Isci / Ajan Cuzdan Adresi <span class="optional">- opsiyonel, bos birak = acik is (herkes alabilir)</span>
+          <input type="text" id="workerInput" placeholder="0x... (bos = acik is)" />
         </label>
         <label>
           Hakem (Arbiter) Adresi <span class="optional">- opsiyonel</span>

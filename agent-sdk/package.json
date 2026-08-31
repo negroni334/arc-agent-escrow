@@ -1,0 +1,14 @@
+{
+  "name": "arc-agent-escrow-sdk",
+  "version": "1.0.0",
+  "description": "Node.js SDK ve otonom demo - AI ajanlarinin Arc Testnet uzerindeki JobEscrow kontratiyla dogrudan, programatik olarak etkilesmesi icin.",
+  "type": "commonjs",
+  "main": "client.js",
+  "scripts": {
+    "demo": "node examples/agent-demo.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.4"
+  }
+}

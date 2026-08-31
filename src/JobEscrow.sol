@@ -9,7 +9,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 /// @notice Arc Testnet uzerinde AI ajanlari / iscilerle isverenler arasinda basit bir
 ///         USDC emanet (escrow) sistemi. Isveren bir ise USDC kilitler, is tamamlaninca
 ///         onayla parayi isciye serbest birakir, ya da tamamlanmadan iptal edip
-///         parasini geri alabilir.
+///         parasini geri alabilir. Isveren, isi belirli bir isciye atayabilir ya da
+///         worker'i bos birakip "acik is" olarak yayinlayabilir - bu durumda herhangi
+///         bir adres `claimJob` ile isi ustlenebilir (basit bir is pazari/marketplace).
 /// @dev Tek bir kontrat, coklu "job" (is) yonetir. Her job bagimsiz bir jobId ile takip edilir.
 ///
 /// Guven modeli: Onay ("approveJob") ve iptal ("cancelJob") tamamen isverenin elinde -
@@ -57,6 +59,7 @@ contract JobEscrow is ReentrancyGuard {
     );
     event JobApproved(uint256 indexed jobId, address indexed employer, address indexed worker, uint256 amount);
     event JobCancelled(uint256 indexed jobId, address indexed employer, uint256 amount);
+    event JobClaimed(uint256 indexed jobId, address indexed worker);
     event DisputeRaised(uint256 indexed jobId, address indexed worker);
     event DisputeResolved(uint256 indexed jobId, address indexed arbiter, bool releasedToWorker);
 
@@ -65,6 +68,7 @@ contract JobEscrow is ReentrancyGuard {
     error InvalidAmount();
     error JobNotFunded();
     error JobNotDisputed();
+    error JobNotOpen();
     error NotEmployer();
     error NotWorker();
     error NotArbiter();
@@ -78,7 +82,8 @@ contract JobEscrow is ReentrancyGuard {
     /// @notice Yeni bir is olusturur ve USDC'yi bu kontrata kilitler.
     /// @dev Cagirmadan once isveren, bu kontrata en az `amount` kadar USDC harcama izni
     ///      (approve) vermis olmali. Kontrat `transferFrom` ile parayi kendi bakiyesine cekiyor.
-    /// @param worker Is tamamlaninca USDC'yi alacak ajan/isci cuzdani.
+    /// @param worker Is tamamlaninca USDC'yi alacak ajan/isci cuzdani. `address(0)` verilirse
+    ///        is "acik" olusturulur - herhangi biri `claimJob` ile isi ustlenebilir.
     /// @param arbiter Anlasmazlik durumunda karar verecek tarafsiz adres. address(0) verilirse
     ///        hakem atanmamis olur (isci bu job icin "raiseDispute" cagiramaz).
     /// @param amount Kilitlenecek USDC miktari (USDC'nin 6 decimal birimiyle, ornegin 5 USDC = 5_000_000).
@@ -89,8 +94,8 @@ contract JobEscrow is ReentrancyGuard {
         nonReentrant
         returns (uint256 jobId)
     {
-        if (worker == address(0) || worker == msg.sender) revert InvalidWorker();
-        if (arbiter == msg.sender || arbiter == worker) revert InvalidArbiter();
+        if (worker == msg.sender) revert InvalidWorker();
+        if (arbiter == msg.sender || (worker != address(0) && arbiter == worker)) revert InvalidArbiter();
         if (amount == 0) revert InvalidAmount();
 
         jobId = jobCount++;
@@ -106,6 +111,20 @@ contract JobEscrow is ReentrancyGuard {
         USDC.safeTransferFrom(msg.sender, address(this), amount);
 
         emit JobCreated(jobId, msg.sender, worker, arbiter, amount, description);
+    }
+
+    /// @notice Acik bir isi (worker atanmamis) ustlenir; cagiran adres yeni worker olur.
+    /// @dev Is "Funded" durumunda ve worker hala address(0) (yani acik) olmalidir. Isveren
+    ///      kendi isini claim edemez.
+    function claimJob(uint256 jobId) external {
+        Job storage job = jobs[jobId];
+        if (job.status != Status.Funded) revert JobNotFunded();
+        if (job.worker != address(0)) revert JobNotOpen();
+        if (msg.sender == job.employer) revert InvalidWorker();
+
+        job.worker = msg.sender;
+
+        emit JobClaimed(jobId, msg.sender);
     }
 
     /// @notice Isveren isi onaylar; kilitli USDC isciye gonderilir.
