@@ -18,7 +18,7 @@ ajan/isci cuzdanina gecer. Isveren, onaydan once isi iptal edip parasini geri al
 
 | | |
 |---|---|
-| `JobEscrow` | [`0x662B6eC9cc4fD8023806d95fCB9958c9794453cB`](https://testnet.arcscan.app/address/0x662B6eC9cc4fD8023806d95fCB9958c9794453cB) |
+| `JobEscrow` | [`0x662B6eC9cc4fD8023806d95fCB9958c9794453cB`](https://testnet.arcscan.app/address/0x662B6eC9cc4fD8023806d95fCB9958c9794453cB) (Arcscan'de dogrulanmis ✅) |
 
 ## Kurulum
 
