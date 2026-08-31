@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arc Agent Escrow</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <span class="dot"></span>
+        <h1>Arc Agent Escrow</h1>
+      </div>
+      <p class="sub">Arc Testnet uzerinde USDC tabanli AI Agent / is emaneti sistemi</p>
+      <div id="walletBar" class="wallet-bar">
+        <button id="connectBtn" class="btn primary">Cuzdani Bagla</button>
+        <span id="networkBadge" class="badge hidden"></span>
+        <span id="addressBadge" class="badge addr hidden"></span>
+      </div>
+      <div id="statusMsg" class="status hidden"></div>
+    </header>
+
+    <section class="card">
+      <h2>Yeni Is Olustur</h2>
+      <p class="hint">Isci/ajan cuzdan adresine, kilitlenecek USDC miktarina ve isin kisa aciklamasina karar ver. Once USDC harcama izni (approve), ardindan is olusturma islemi icin cuzdanindan iki ayri onay istenecek.</p>
+      <form id="createJobForm">
+        <label>
+          Isci / Ajan Cuzdan Adresi
+          <input type="text" id="workerInput" placeholder="0x..." required />
+        </label>
+        <label>
+          Miktar (USDC)
+          <input type="number" id="amountInput" placeholder="orn. 5" step="0.000001" min="0" required />
+        </label>
+        <label>
+          Aciklama
+          <input type="text" id="descriptionInput" placeholder="orn. Landing page tasarimi" required />
+        </label>
+        <button type="submit" class="btn primary" id="createJobBtn">Is Olustur (Approve + Create)</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="jobs-head">
+        <h2>Isler</h2>
+        <button id="refreshBtn" class="btn ghost">Yenile</button>
+      </div>
+      <div id="jobsEmpty" class="hint">Henuz cuzdan baglanmadi ya da hic is olusturulmadi.</div>
+      <div id="jobsList" class="jobs-list"></div>
+    </section>
+
+    <footer>
+      <p>
+        Kontrat:
+        <a id="contractLink" target="_blank" rel="noopener"></a>
+        &middot;
+        <a href="https://github.com/negroni334/arc-agent-escrow" target="_blank" rel="noopener">GitHub</a>
+      </p>
+    </footer>
+  </div>
+
+  <script src="vendor/ethers.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

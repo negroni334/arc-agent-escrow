@@ -8,6 +8,9 @@ Arc Testnet uzerinde calisan, USDC tabanli basit bir AI Agent / is emaneti (escr
 Isveren bir ise USDC kilitler; is tamamlaninca isveren onaylar ve USDC otomatik olarak
 ajan/isci cuzdanina gecer. Isveren, onaydan once isi iptal edip parasini geri alabilir.
 
+**Canli demo (dApp):** [arc-agent-escrow.vercel.app](https://arc-agent-escrow.vercel.app)
+— MetaMask ile baglan, is olustur/onayla/iptal et, tumu gercek Arc Testnet uzerinde.
+
 ## Mimari
 
 ### Is durumlari (state machine)
@@ -79,6 +82,19 @@ forge test -vvv
 
 ```bash
 forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
+```
+
+## Frontend (dApp)
+
+`frontend/` klasorunde, ek bir build araci gerektirmeyen (vanilla HTML/CSS/JS + ethers.js v6)
+basit bir arayuz var. MetaMask ile baglanip is olusturma/onaylama/iptal etme islemlerini
+tarayicidan yapmayi sagliyor; canli hali [arc-agent-escrow.vercel.app](https://arc-agent-escrow.vercel.app).
+
+Local'de calistirmak icin:
+
+```bash
+node frontend/serve.js
+# http://localhost:5173
 ```
 
 ## Kontrat Arayuzu
