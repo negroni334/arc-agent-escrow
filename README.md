@@ -1,66 +1,60 @@
-## Foundry
+# Arc Agent Escrow
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Arc Testnet uzerinde calisan, USDC tabanli basit bir AI Agent / is emaneti (escrow) sistemi.
 
-Foundry consists of:
+Isveren bir ise USDC kilitler; is tamamlaninca isveren onaylar ve USDC otomatik olarak
+ajan/isci cuzdanina gecer. Isveren, onaydan once isi iptal edip parasini geri alabilir.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Ag Bilgileri (Arc Testnet)
 
-## Documentation
+| | |
+|---|---|
+| Chain ID | `5042002` |
+| RPC | `https://rpc.testnet.arc.network` |
+| Explorer | `https://testnet.arcscan.app` |
+| USDC (ERC-20 arayuzu, 6 decimal) | `0x3600000000000000000000000000000000000000` |
 
-https://book.getfoundry.sh/
+## Deploy Edilmis Kontrat
 
-## Usage
+| | |
+|---|---|
+| `JobEscrow` | [`0x662B6eC9cc4fD8023806d95fCB9958c9794453cB`](https://testnet.arcscan.app/address/0x662B6eC9cc4fD8023806d95fCB9958c9794453cB) |
 
-### Build
+## Kurulum
 
-```shell
-$ forge build
+```bash
+foundryup
+forge install
+cp .env.example .env   # sonra .env icini kendi degerlerinle doldur
 ```
 
-### Test
+## Test
 
-```shell
-$ forge test
+```bash
+forge test -vvv
 ```
 
-### Format
+## Deploy (Arc Testnet)
 
-```shell
-$ forge fmt
+```bash
+forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
 ```
 
-### Gas Snapshots
+## Kontrat Arayuzu
 
-```shell
-$ forge snapshot
-```
+- `createJob(address worker, uint256 amount, string description) -> uint256 jobId`
+  Isveren once USDC'ye `approve(escrowAdresi, amount)` cagirmis olmali. Bu fonksiyon
+  parayi `transferFrom` ile kontrata ceker ve isi "Funded" durumuna alir.
+- `approveJob(uint256 jobId)` — sadece isveren cagirabilir. Isi "Completed" yapar,
+  kilitli USDC'yi worker'a gonderir.
+- `cancelJob(uint256 jobId)` — sadece isveren cagirabilir, is hala "Funded" ise. Isi
+  "Cancelled" yapar, kilitli USDC'yi isverene iade eder.
+- `getJob(uint256 jobId)` — is detaylarini okur (view).
 
-### Anvil
+## Guvenlik Notlari / Kapsam Disi
 
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- MVP'de ayri bir hakem/arbiter rolu yok; onay tamamen isverenin imzasiyla yapilir.
+- Anlasmazlik cozumu, kismi odeme, deadline/timeout mekanizmasi bu surumde yok —
+  ileride eklenebilecek genisletmeler olarak dusunulmeli.
+- `.env` dosyasi asla commit edilmez (`.gitignore`'da). Icindeki private key sadece
+  testnet icin uretilmis, gercek fonu olmayan bir cuzdana ait.
