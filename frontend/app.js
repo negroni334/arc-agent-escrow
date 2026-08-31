@@ -12,6 +12,7 @@ const addressBadge = el("addressBadge");
 const jobsList = el("jobsList");
 const jobsEmpty = el("jobsEmpty");
 const contractLink = el("contractLink");
+const copyAddrBtn = el("copyAddrBtn");
 
 contractLink.href = `${CONFIG.explorerUrl}/address/${CONFIG.escrowAddress}`;
 contractLink.textContent = `${CONFIG.escrowAddress.slice(0, 6)}...${CONFIG.escrowAddress.slice(-4)}`;
@@ -110,6 +111,7 @@ async function connectWallet() {
     addressBadge.textContent = shortAddr(userAddress);
     addressBadge.classList.remove("hidden");
     connectBtn.textContent = "Baglandi";
+    copyAddrBtn.classList.remove("hidden");
 
     await refreshJobs();
   } catch (err) {
@@ -309,6 +311,17 @@ async function handleCreateJob(e) {
 connectBtn.addEventListener("click", connectWallet);
 el("refreshBtn").addEventListener("click", refreshJobs);
 el("createJobForm").addEventListener("submit", handleCreateJob);
+copyAddrBtn.addEventListener("click", async () => {
+  if (!userAddress) return;
+  try {
+    await navigator.clipboard.writeText(userAddress);
+    const original = copyAddrBtn.textContent;
+    copyAddrBtn.textContent = "Kopyalandi!";
+    setTimeout(() => (copyAddrBtn.textContent = original), 1500);
+  } catch (err) {
+    showStatus(`Kopyalanamadi, adresini elle kopyala: ${userAddress}`, "error");
+  }
+});
 
 if (window.ethereum) {
   window.ethereum.on?.("accountsChanged", () => window.location.reload());
