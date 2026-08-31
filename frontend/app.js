@@ -31,7 +31,13 @@ function shortAddr(addr) {
 }
 
 function statusLabel(statusNum) {
-  return ["-", "Funded (Bekliyor)", "Completed (Tamamlandi)", "Cancelled (Iptal)"][statusNum] || "?";
+  return ["-", "Funded (Bekliyor)", "Completed (Tamamlandi)", "Cancelled (Iptal)", "Disputed (Anlasmazlik)"][
+    statusNum
+  ] || "?";
+}
+
+function isZeroAddress(addr) {
+  return !addr || addr.toLowerCase() === "0x0000000000000000000000000000000000000000";
 }
 
 async function loadAbi() {
@@ -134,6 +140,7 @@ async function refreshJobs() {
         id: i,
         employer: job.employer,
         worker: job.worker,
+        arbiter: job.arbiter,
         amount: job.amount,
         status: job.status,
         description: job.description,
@@ -156,28 +163,48 @@ function renderJobCard(job) {
   const div = document.createElement("div");
   div.className = "job-card";
 
-  const isFunded = Number(job.status) === 1;
+  const statusNum = Number(job.status);
+  const isFunded = statusNum === 1;
+  const isDisputed = statusNum === 4;
+  const hasArbiter = !isZeroAddress(job.arbiter);
+
   const isEmployer = userAddress && userAddress.toLowerCase() === job.employer.toLowerCase();
+  const isWorker = userAddress && userAddress.toLowerCase() === job.worker.toLowerCase();
+  const isArbiter = userAddress && hasArbiter && userAddress.toLowerCase() === job.arbiter.toLowerCase();
+
+  let actionsHtml = "";
+  if (isFunded && isEmployer) {
+    actionsHtml = `
+      <div class="job-actions">
+        <button class="btn primary small" data-action="approve" data-id="${job.id}">Onayla</button>
+        <button class="btn danger small" data-action="cancel" data-id="${job.id}">Iptal Et</button>
+      </div>`;
+  } else if (isFunded && isWorker && hasArbiter) {
+    actionsHtml = `
+      <div class="job-actions">
+        <button class="btn danger small" data-action="dispute" data-id="${job.id}">Anlasmazlik Ac</button>
+      </div>`;
+  } else if (isDisputed && isArbiter) {
+    actionsHtml = `
+      <div class="job-actions">
+        <button class="btn primary small" data-action="resolveWorker" data-id="${job.id}">Isciye Ver</button>
+        <button class="btn danger small" data-action="resolveEmployer" data-id="${job.id}">Isverene Iade Et</button>
+      </div>`;
+  }
 
   div.innerHTML = `
     <div class="job-top">
       <span class="job-id">#${job.id}</span>
-      <span class="job-status status-${job.status}">${statusLabel(Number(job.status))}</span>
+      <span class="job-status status-${statusNum}">${statusLabel(statusNum)}</span>
     </div>
     <p class="job-desc">${job.description}</p>
     <div class="job-meta">
       <div><span>Isveren</span><code>${shortAddr(job.employer)}</code></div>
       <div><span>Isci</span><code>${shortAddr(job.worker)}</code></div>
+      <div><span>Hakem</span><code>${hasArbiter ? shortAddr(job.arbiter) : "yok"}</code></div>
       <div><span>Miktar</span><code>${amountUsdc} USDC</code></div>
     </div>
-    ${
-      isFunded && isEmployer
-        ? `<div class="job-actions">
-             <button class="btn primary small" data-action="approve" data-id="${job.id}">Onayla</button>
-             <button class="btn danger small" data-action="cancel" data-id="${job.id}">Iptal Et</button>
-           </div>`
-        : ""
-    }
+    ${actionsHtml}
   `;
 
   div.querySelectorAll("button[data-action]").forEach((btn) => {
@@ -187,26 +214,39 @@ function renderJobCard(job) {
   return div;
 }
 
+const ACTION_LABELS = {
+  approve: "Onayla",
+  cancel: "Iptal Et",
+  dispute: "Anlasmazlik Ac",
+  resolveWorker: "Isciye Ver",
+  resolveEmployer: "Isverene Iade Et",
+};
+
 async function handleJobAction(action, jobId, btn) {
   try {
     btn.disabled = true;
-    const original = btn.textContent;
     btn.textContent = "Isleniyor...";
     clearStatus();
 
     const contract = await getWriteContract();
-    const tx = action === "approve" ? await contract.approveJob(jobId) : await contract.cancelJob(jobId);
+    let tx;
+    if (action === "approve") tx = await contract.approveJob(jobId);
+    else if (action === "cancel") tx = await contract.cancelJob(jobId);
+    else if (action === "dispute") tx = await contract.raiseDispute(jobId);
+    else if (action === "resolveWorker") tx = await contract.resolveDispute(jobId, true);
+    else if (action === "resolveEmployer") tx = await contract.resolveDispute(jobId, false);
+    else throw new Error(`Bilinmeyen islem: ${action}`);
+
     showStatus(`Islem gonderildi: ${tx.hash} - onay bekleniyor...`, "info");
     await tx.wait();
-    showStatus(`Is #${jobId} ${action === "approve" ? "onaylandi" : "iptal edildi"}.`, "success");
+    showStatus(`Is #${jobId}: "${ACTION_LABELS[action]}" islemi basariyla tamamlandi.`, "success");
 
-    btn.textContent = original;
     await refreshJobs();
   } catch (err) {
     console.error(err);
     showStatus(`Islem basarisiz: ${err.shortMessage || err.message || err}`, "error");
     btn.disabled = false;
-    btn.textContent = action === "approve" ? "Onayla" : "Iptal Et";
+    btn.textContent = ACTION_LABELS[action] || "Tekrar dene";
   }
 }
 
@@ -214,6 +254,7 @@ async function handleCreateJob(e) {
   e.preventDefault();
   const btn = el("createJobBtn");
   const worker = el("workerInput").value.trim();
+  const arbiterRaw = el("arbiterInput").value.trim();
   const amountHuman = el("amountInput").value.trim();
   const description = el("descriptionInput").value.trim();
 
@@ -223,6 +264,11 @@ async function handleCreateJob(e) {
   }
   if (!ethers.isAddress(worker)) {
     showStatus("Gecerli bir isci cuzdan adresi gir.", "error");
+    return;
+  }
+  const arbiter = arbiterRaw === "" ? ethers.ZeroAddress : arbiterRaw;
+  if (!ethers.isAddress(arbiter)) {
+    showStatus("Hakem adresi girdiysen gecerli bir adres olmali (ya da bos birak).", "error");
     return;
   }
 
@@ -244,7 +290,7 @@ async function handleCreateJob(e) {
 
     btn.textContent = "2/2 Is olusturuluyor...";
     const contract = await getWriteContract();
-    const tx = await contract.createJob(worker, amount, description);
+    const tx = await contract.createJob(worker, arbiter, amount, description);
     showStatus(`createJob gonderildi: ${tx.hash} - onay bekleniyor...`, "info");
     await tx.wait();
 

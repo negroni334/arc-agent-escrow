@@ -24,11 +24,15 @@
 
     <section class="card">
       <h2>Yeni Is Olustur</h2>
-      <p class="hint">Isci/ajan cuzdan adresine, kilitlenecek USDC miktarina ve isin kisa aciklamasina karar ver. Once USDC harcama izni (approve), ardindan is olusturma islemi icin cuzdanindan iki ayri onay istenecek.</p>
+      <p class="hint">Isci/ajan cuzdan adresine, kilitlenecek USDC miktarina ve isin kisa aciklamasina karar ver. Once USDC harcama izni (approve), ardindan is olusturma islemi icin cuzdanindan iki ayri onay istenecek. Hakem adresi girersen, isveren haksiz davranirsa isci anlasmazlik acabilir ve hakem karar verebilir.</p>
       <form id="createJobForm">
         <label>
           Isci / Ajan Cuzdan Adresi
           <input type="text" id="workerInput" placeholder="0x..." required />
+        </label>
+        <label>
+          Hakem (Arbiter) Adresi <span class="optional">- opsiyonel</span>
+          <input type="text" id="arbiterInput" placeholder="0x... (bos birakilirsa anlasmazlik acilamaz)" />
         </label>
         <label>
           Miktar (USDC)

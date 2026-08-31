@@ -263,6 +263,18 @@ input:focus {
   color: var(--red);
 }
 
+.status-4 {
+  background: #2a1a3a;
+  color: #c896ff;
+}
+
+.optional {
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  font-size: 11px;
+}
+
 .job-desc {
   margin: 0 0 10px;
   font-size: 14px;
