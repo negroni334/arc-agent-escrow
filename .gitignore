@@ -1,0 +1,12 @@
+# Foundry
+cache/
+out/
+broadcast/*/*/run-latest.json
+
+# dotenv - gerçek gizli bilgileri asla commit etme
+.env
+.env.local
+
+# editor/OS
+.vscode/
+.DS_Store
