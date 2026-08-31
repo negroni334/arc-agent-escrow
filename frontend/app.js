@@ -1,4 +1,5 @@
 let jobEscrowAbi = null;
+let faucetAbi = null;
 let provider = null; // read-only provider (public RPC), always available
 let browserProvider = null; // MetaMask provider, only after connect
 let signer = null;
@@ -13,6 +14,9 @@ const jobsList = el("jobsList");
 const jobsEmpty = el("jobsEmpty");
 const contractLink = el("contractLink");
 const copyAddrBtn = el("copyAddrBtn");
+const faucetPoolBadge = el("faucetPoolBadge");
+const faucetClaimBtn = el("faucetClaimBtn");
+const faucetStatusMsg = el("faucetStatusMsg");
 
 contractLink.href = `${CONFIG.explorerUrl}/address/${CONFIG.escrowAddress}`;
 contractLink.textContent = `${CONFIG.escrowAddress.slice(0, 6)}...${CONFIG.escrowAddress.slice(-4)}`;
@@ -60,6 +64,86 @@ async function getWriteContract() {
   await loadAbi();
   if (!signer) throw new Error("Once cuzdanini bagla.");
   return new ethers.Contract(CONFIG.escrowAddress, jobEscrowAbi, signer);
+}
+
+async function loadFaucetAbi() {
+  if (faucetAbi) return faucetAbi;
+  const res = await fetch("vendor/faucet-abi.json");
+  faucetAbi = await res.json();
+  return faucetAbi;
+}
+
+async function getReadOnlyFaucet() {
+  await loadFaucetAbi();
+  if (!provider) {
+    provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl, CONFIG.chainIdDec);
+  }
+  return new ethers.Contract(CONFIG.faucetAddress, faucetAbi, provider);
+}
+
+async function getWriteFaucet() {
+  await loadFaucetAbi();
+  if (!signer) throw new Error("Once cuzdanini bagla.");
+  return new ethers.Contract(CONFIG.faucetAddress, faucetAbi, signer);
+}
+
+function formatDuration(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0) return `${h} saat ${m} dakika`;
+  return `${m} dakika`;
+}
+
+async function refreshFaucetStatus() {
+  try {
+    const faucet = await getReadOnlyFaucet();
+    const usdc = new ethers.Contract(CONFIG.usdcAddress, ERC20_ABI, provider);
+    const poolBalance = await usdc.balanceOf(CONFIG.faucetAddress);
+    faucetPoolBadge.textContent = `Havuzda: ${ethers.formatUnits(poolBalance, CONFIG.usdcDecimals)} USDC`;
+
+    if (!userAddress) {
+      faucetClaimBtn.disabled = true;
+      faucetClaimBtn.textContent = "Once cuzdanini bagla";
+      return;
+    }
+
+    const wait = await faucet.timeUntilNextClaim(userAddress);
+    if (Number(wait) > 0) {
+      faucetClaimBtn.disabled = true;
+      faucetClaimBtn.textContent = `Sonraki hak icin bekle: ${formatDuration(Number(wait))}`;
+    } else if (poolBalance < (await faucet.CLAIM_AMOUNT())) {
+      faucetClaimBtn.disabled = true;
+      faucetClaimBtn.textContent = "Havuz bos, daha sonra tekrar dene";
+    } else {
+      faucetClaimBtn.disabled = false;
+      faucetClaimBtn.textContent = "0.5 USDC Al";
+    }
+  } catch (err) {
+    console.error(err);
+    faucetPoolBadge.textContent = "Havuz bilgisi alinamadi";
+  }
+}
+
+async function handleFaucetClaim() {
+  try {
+    faucetClaimBtn.disabled = true;
+    faucetClaimBtn.textContent = "Isleniyor...";
+    faucetStatusMsg.classList.add("hidden");
+
+    const faucet = await getWriteFaucet();
+    const tx = await faucet.claim();
+    faucetStatusMsg.textContent = `Islem gonderildi: ${tx.hash} - onay bekleniyor...`;
+    faucetStatusMsg.classList.remove("hidden");
+    await tx.wait();
+
+    faucetStatusMsg.textContent = "0.5 USDC cuzdanina gonderildi!";
+    await refreshFaucetStatus();
+  } catch (err) {
+    console.error(err);
+    faucetStatusMsg.textContent = `Claim basarisiz: ${err.shortMessage || err.message || err}`;
+    faucetStatusMsg.classList.remove("hidden");
+    await refreshFaucetStatus();
+  }
 }
 
 async function ensureArcNetwork() {
@@ -114,6 +198,7 @@ async function connectWallet() {
     copyAddrBtn.classList.remove("hidden");
 
     await refreshJobs();
+    await refreshFaucetStatus();
   } catch (err) {
     console.error(err);
     showStatus(`Baglanti hatasi: ${err.message || err}`, "error");
@@ -323,10 +408,13 @@ copyAddrBtn.addEventListener("click", async () => {
   }
 });
 
+faucetClaimBtn.addEventListener("click", handleFaucetClaim);
+
 if (window.ethereum) {
   window.ethereum.on?.("accountsChanged", () => window.location.reload());
   window.ethereum.on?.("chainChanged", () => window.location.reload());
 }
 
-// Cuzdan baglanmasa bile is listesini salt-okunur RPC ile goster
+// Cuzdan baglanmasa bile is listesini ve faucet havuz bilgisini salt-okunur RPC ile goster
 refreshJobs();
+refreshFaucetStatus();

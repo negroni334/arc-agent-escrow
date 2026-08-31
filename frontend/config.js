@@ -9,6 +9,7 @@ const CONFIG = {
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
 
   escrowAddress: "0x2E884D26978EA9120ba21445abe1f7Fd8144a114",
+  faucetAddress: "0x01d7a0085C5fbb28062F80e117903356ee397a29",
   usdcAddress: "0x3600000000000000000000000000000000000000",
   usdcDecimals: 6,
 };

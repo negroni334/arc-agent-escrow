@@ -76,6 +76,7 @@ sequenceDiagram
 | | |
 |---|---|
 | `JobEscrow` | [`0x2E884D26978EA9120ba21445abe1f7Fd8144a114`](https://testnet.arcscan.app/address/0x2E884D26978EA9120ba21445abe1f7Fd8144a114) (Arcscan'de dogrulanmis ✅) |
+| `Faucet` | [`0x01d7a0085C5fbb28062F80e117903356ee397a29`](https://testnet.arcscan.app/address/0x01d7a0085C5fbb28062F80e117903356ee397a29) (Arcscan'de dogrulanmis ✅) |
 
 ## Kurulum
 
@@ -95,7 +96,30 @@ forge test -vvv
 
 ```bash
 forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
+
+# Faucet'i deploy et (havuzu doldurmak istersen FAUCET_FUND_AMOUNT'i ayarla, orn. 5000000 = 5 USDC)
+forge script script/DeployFaucet.s.sol --rpc-url arc_testnet --broadcast
 ```
+
+> Not: `DeployFaucet.s.sol` icindeki `fund()` cagrisi, Foundry'nin yerel simulasyonunun
+> Arc'in USDC compliance/blocklist kontrolunu dogru simule edememesi nedeniyle bazen
+> "StackUnderflow" hatasi verebilir. Boyle olursa deploy ve fonlamayi ayri adimlarda yap:
+> once `FAUCET_FUND_AMOUNT` olmadan deploy et, sonra `cast send` ile `approve` + `fund`
+> cagir (gercek zincirde sorunsuz calisir, sadece yerel simulasyon etkileniyor).
+
+## Mini Faucet
+
+`src/Faucet.sol`, dApp'i denemek isteyenler icin kucuk, rate-limitli (adres basina gunde
+0.5 USDC) bir USDC dagitici. Otomatik Circle faucet claim'i yapmaz — sahip tarafindan elle
+doldurulan bir havuzdan dagitir; kotuye kullanimi onlemek icin cooldown tamamen zincir
+uzerinde tutulur (`lastClaimedAt` mapping'i, herkes tarafindan denetlenebilir). Private key
+gerektiren bir backend yok - kullanici dogrudan kendi cuzdanindan `claim()` cagirir.
+
+- `claim()` — cagiran adrese `CLAIM_AMOUNT` (0.5 USDC) gonderir, `COOLDOWN` (1 gun) dolmadan
+  tekrar cagrilamaz.
+- `fund(uint256 amount)` — havuza herkes USDC ekleyebilir (once `approve` gerekir).
+- `timeUntilNextClaim(address)` — bir sonraki claim'e kadar kalan saniye (view).
+- `emergencyWithdraw(uint256 amount)` — sadece sahip (owner), havuzu geri ceker.
 
 ## Frontend (dApp)
 

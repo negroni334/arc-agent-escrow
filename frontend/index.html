@@ -30,6 +30,20 @@
     </header>
 
     <section class="card">
+      <div class="jobs-head">
+        <h2>Mini Faucet</h2>
+        <span id="faucetPoolBadge" class="badge">yukleniyor...</span>
+      </div>
+      <p class="hint">
+        Bu dApp'i denemen icin kucuk bir baslangic miktari: cuzdan basina gunde bir kez
+        <strong>0.5 USDC</strong>. Sinirsiz bir kaynak degil - daha fazlasi icin yukaridaki
+        "Test USDC Al" (Circle resmi faucet'i) linkini kullan.
+      </p>
+      <button id="faucetClaimBtn" class="btn primary" disabled>Once cuzdanini bagla</button>
+      <p id="faucetStatusMsg" class="hint faucet-status hidden"></p>
+    </section>
+
+    <section class="card">
       <h2>Yeni Is Olustur</h2>
       <p class="hint">Isci/ajan cuzdan adresine, kilitlenecek USDC miktarina ve isin kisa aciklamasina karar ver. Once USDC harcama izni (approve), ardindan is olusturma islemi icin cuzdanindan iki ayri onay istenecek. Hakem adresi girersen, isveren haksiz davranirsa isci anlasmazlik acabilir ve hakem karar verebilir.</p>
       <form id="createJobForm">
