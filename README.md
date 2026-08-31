@@ -1,9 +1,50 @@
 # Arc Agent Escrow
 
+[![test](https://github.com/negroni334/arc-agent-escrow/actions/workflows/test.yml/badge.svg)](https://github.com/negroni334/arc-agent-escrow/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Arc Testnet uzerinde calisan, USDC tabanli basit bir AI Agent / is emaneti (escrow) sistemi.
 
 Isveren bir ise USDC kilitler; is tamamlaninca isveren onaylar ve USDC otomatik olarak
 ajan/isci cuzdanina gecer. Isveren, onaydan once isi iptal edip parasini geri alabilir.
+
+## Mimari
+
+### Is durumlari (state machine)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Funded: createJob()
+    Funded --> Completed: approveJob()
+    Funded --> Cancelled: cancelJob()
+    Completed --> [*]
+    Cancelled --> [*]
+```
+
+### Akis
+
+```mermaid
+sequenceDiagram
+    participant E as Isveren
+    participant C as JobEscrow
+    participant U as USDC (ERC-20)
+    participant W as Isci / Ajan
+
+    E->>U: approve(escrow, amount)
+    E->>C: createJob(worker, amount, description)
+    C->>U: transferFrom(isveren, escrow, amount)
+    Note over C: durum = Funded
+
+    alt is tamamlandi
+        E->>C: approveJob(jobId)
+        C->>U: transfer(worker, amount)
+        Note over C: durum = Completed
+    else is iptal edildi
+        E->>C: cancelJob(jobId)
+        C->>U: transfer(isveren, amount)
+        Note over C: durum = Cancelled
+    end
+```
 
 ## Ag Bilgileri (Arc Testnet)
 

@@ -20,7 +20,6 @@ contract JobEscrow is ReentrancyGuard {
         Funded, // isveren USDC'yi kilitledi, is devam ediyor
         Completed, // isveren onayladi, USDC isciye gitti
         Cancelled // isveren onaydan once iptal etti, USDC isverene geri dondu
-
     }
 
     struct Job {
@@ -71,8 +70,9 @@ contract JobEscrow is ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
 
         jobId = jobCount++;
-        jobs[jobId] =
-            Job({employer: msg.sender, worker: worker, amount: amount, status: Status.Funded, description: description});
+        jobs[jobId] = Job({
+            employer: msg.sender, worker: worker, amount: amount, status: Status.Funded, description: description
+        });
 
         USDC.safeTransferFrom(msg.sender, address(this), amount);
 
