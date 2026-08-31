@@ -51,6 +51,19 @@
   },
   {
     "type": "function",
+    "name": "claimJob",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "createJob",
     "inputs": [
       {
@@ -324,6 +337,25 @@
   },
   {
     "type": "event",
+    "name": "JobClaimed",
+    "inputs": [
+      {
+        "name": "jobId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "worker",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "JobCreated",
     "inputs": [
       {
@@ -388,6 +420,11 @@
   {
     "type": "error",
     "name": "JobNotFunded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "JobNotOpen",
     "inputs": []
   },
   {

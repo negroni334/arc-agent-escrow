@@ -11,6 +11,13 @@ Her job'a opsiyonel bir **hakem (arbiter)** atanabilir: isveren haksiz davranip 
 isci anlasmazlik acabilir ve karari tarafsiz hakem verir — boylece isveren tek tarafli
 olarak isi yaptirip parayi geri alamaz.
 
+Is, belirli bir isciye atanabilir **ya da worker bos birakilip "acik is" olarak** yayinlanabilir
+— bu durumda herhangi bir adres (insan ya da ajan) `claimJob` ile isi ustlenebilir, basit
+bir is pazari (marketplace) olusturur. Her adresin gecmisi (`JobApproved`/`JobCancelled`
+event'lerinden turetilen tamamlanan/iptal edilen is sayisi) hem dApp'te hem SDK'da goruntulenir.
+Ayrica [`agent-sdk/`](agent-sdk/) altinda, iki otonom cuzdanin **hicbir insan mudahalesi
+olmadan** gercek bir is-odeme dongusu tamamladigi calisan bir Node.js demosu var.
+
 **Canli demo (dApp):** [arc-agent-escrow.vercel.app](https://arc-agent-escrow.vercel.app)
 — MetaMask ile baglan, is olustur/onayla/iptal et, tumu gercek Arc Testnet uzerinde.
 
@@ -20,15 +27,20 @@ olarak isi yaptirip parayi geri alamaz.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Funded: createJob()
-    Funded --> Completed: approveJob() [isveren]
-    Funded --> Cancelled: cancelJob() [isveren]
-    Funded --> Disputed: raiseDispute() [isci, hakem varsa]
+    [*] --> Funded_Open: createJob(worker=0x0)
+    [*] --> Funded_Assigned: createJob(worker=X)
+    Funded_Open --> Funded_Assigned: claimJob() [herhangi biri]
+    Funded_Assigned --> Completed: approveJob() [isveren]
+    Funded_Assigned --> Cancelled: cancelJob() [isveren]
+    Funded_Assigned --> Disputed: raiseDispute() [isci, hakem varsa]
     Disputed --> Completed: resolveDispute(true) [hakem]
     Disputed --> Cancelled: resolveDispute(false) [hakem]
     Completed --> [*]
     Cancelled --> [*]
 ```
+
+(`Funded_Open` ve `Funded_Assigned`, kontratin `Status` enum'unda tek bir "Funded" degeri —
+worker alaninin `address(0)` olup olmamasi acik/atanmis ayrimini yapar.)
 
 ### Akis
 
@@ -75,8 +87,18 @@ sequenceDiagram
 
 | | |
 |---|---|
-| `JobEscrow` | [`0x2E884D26978EA9120ba21445abe1f7Fd8144a114`](https://testnet.arcscan.app/address/0x2E884D26978EA9120ba21445abe1f7Fd8144a114) (Arcscan'de dogrulanmis ✅) |
+| `JobEscrow` (v3 — acik is pazari) | [`0xCc63109fE7A09C886b8145E31bA65e1bA9EB9448`](https://testnet.arcscan.app/address/0xCc63109fE7A09C886b8145E31bA65e1bA9EB9448) (Arcscan'de dogrulanmis ✅) |
 | `Faucet` | [`0x01d7a0085C5fbb28062F80e117903356ee397a29`](https://testnet.arcscan.app/address/0x01d7a0085C5fbb28062F80e117903356ee397a29) (Arcscan'de dogrulanmis ✅) |
+
+<details>
+<summary>Onceki deploylar (seffaflik icin, kullanimda degil)</summary>
+
+| Surum | Adres | Not |
+|---|---|---|
+| v2 | [`0x2E884D26978EA9120ba21445abe1f7Fd8144a114`](https://testnet.arcscan.app/address/0x2E884D26978EA9120ba21445abe1f7Fd8144a114) | Hakem/dispute mekanizmasi eklendi |
+| v1 | [`0x662B6eC9cc4fD8023806d95fCB9958c9794453cB`](https://testnet.arcscan.app/address/0x662B6eC9cc4fD8023806d95fCB9958c9794453cB) | Ilk MVP (create/approve/cancel) |
+
+</details>
 
 ## Kurulum
 
@@ -121,6 +143,31 @@ gerektiren bir backend yok - kullanici dogrudan kendi cuzdanindan `claim()` cagi
 - `timeUntilNextClaim(address)` — bir sonraki claim'e kadar kalan saniye (view).
 - `emergencyWithdraw(uint256 amount)` — sadece sahip (owner), havuzu geri ceker.
 
+## Acik Is Pazari (Marketplace)
+
+`createJob` cagrilirken `worker` alani `address(0)` birakilirsa is "acik" olusturulur —
+belirli bir isciye onceden atanmamistir. Herhangi bir adres (insan ya da ajan) `claimJob(jobId)`
+cagirarak isi ustlenebilir; bu noktadan sonra is normal (atanmis) bir is gibi davranir
+(`approveJob`/`cancelJob`/`raiseDispute` ayni sekilde calisir). Bu, iki tarafin onceden
+tanisik olmasi gerekmeden is bulusmasini saglayan basit bir pazar mekanizmasidir.
+
+## Itibar (Reputation)
+
+Kontrata hicbir ek alan/fonksiyon eklenmeden — tamamen mevcut `JobApproved` ve `JobCancelled`
+event'lerinden turetilir. Frontend ve SDK, bir adresin gecmisini `queryFilter` ile zincirden
+okuyup hesaplar: isveren olarak kac is tamamlanmis/iptal edilmis, isci olarak kac is
+tamamlanmis. Ek altyapi (subgraph, backend, veritabani) gerektirmez; tamamen seffaf ve
+herkes tarafindan bagimsiz dogrulanabilir. dApp'te her job card'inda ilgili adreslerin
+yaninda kucuk bir rozet olarak gorunur.
+
+## AI Agent SDK
+
+[`agent-sdk/`](agent-sdk/) — Node.js'ten `JobEscrow` ile programatik etkilesim icin ince bir
+`ArcEscrowClient` wrapper'i ve **otonom, iki cuzdanli bir demo** (`agent-sdk/examples/agent-demo.js`):
+employer-agent acik bir is yayinlar, worker-agent kesfedip ustlenir, is yapilir (simule),
+employer-agent onaylar — hepsi tek bir insan onayi olmadan, gercek Arc Testnet islemleriyle.
+Detaylar icin [agent-sdk/README.md](agent-sdk/README.md).
+
 ## Frontend (dApp)
 
 `frontend/` klasorunde, ek bir build araci gerektirmeyen (vanilla HTML/CSS/JS + ethers.js v6)
@@ -140,6 +187,9 @@ node frontend/serve.js
   Isveren once USDC'ye `approve(escrowAdresi, amount)` cagirmis olmali. Bu fonksiyon
   parayi `transferFrom` ile kontrata ceker ve isi "Funded" durumuna alir. `arbiter` icin
   `address(0)` verilirse hakem atanmamis olur (isci bu job icin anlasmazlik acamaz).
+  `worker` icin `address(0)` verilirse is "acik" olur (bkz. asagida).
+- `claimJob(uint256 jobId)` — herhangi bir adres (isveren haric) cagirabilir; is "Funded"
+  ve worker hala `address(0)` (yani acik) olmali. Cagiran adres yeni worker olur.
 - `approveJob(uint256 jobId)` — sadece isveren cagirabilir, is "Funded" ise. Isi
   "Completed" yapar, kilitli USDC'yi worker'a gonderir.
 - `cancelJob(uint256 jobId)` — sadece isveren cagirabilir, is hala "Funded" ise. Isi
@@ -161,6 +211,8 @@ node frontend/serve.js
 - Hakem, is olusturulurken isveren tarafindan seçiliyor; iki tarafin da guvendigi tarafsiz
   bir adres olmali. Hakemin kendisi kotu niyetli olursa bu koruma islemez — bu MVP'nin
   bilinen bir siniri.
+- `claimJob` ilk gelen alir (first-come-first-served) mantigiyla calisir — birden fazla
+  isci ayni acik ise basvurmak isterse, secim mekanizmasi (teklif/basvuru sistemi) yok.
 - Kismi odeme, coklu-hakem/oylama, deadline/timeout mekanizmasi bu surumde yok —
   ileride eklenebilecek genisletmeler olarak dusunulmeli.
 - `.env` dosyasi asla commit edilmez (`.gitignore`'da). Icindeki private key sadece

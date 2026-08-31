@@ -36,6 +36,11 @@ contract JobEscrowTest is Test {
         jobId = escrow.createJob(worker, address(0), AMOUNT, "test job, no arbiter");
     }
 
+    function _createOpenJob() internal returns (uint256 jobId) {
+        vm.prank(employer);
+        jobId = escrow.createJob(address(0), arbiter, AMOUNT, "open job");
+    }
+
     // ---- createJob ----
 
     function test_CreateJob_LocksFundsInEscrow() public {
@@ -63,10 +68,21 @@ contract JobEscrowTest is Test {
         escrow.createJob(worker, arbiter, 0, "bad job");
     }
 
-    function test_RevertWhen_WorkerIsZeroAddress() public {
+    function test_CreateJob_OpenJob_WorkerIsZeroAddress() public {
+        uint256 jobId = _createOpenJob();
+
+        JobEscrow.Job memory job = escrow.getJob(jobId);
+        assertEq(job.worker, address(0));
+        assertEq(uint8(job.status), uint8(JobEscrow.Status.Funded));
+        // Para yine de kilitlenmis olmali, worker henuz atanmamis olsa da.
+        assertEq(usdc.balanceOf(address(escrow)), AMOUNT);
+    }
+
+    function test_CreateJob_OpenJobWithNoArbiter_Succeeds() public {
         vm.prank(employer);
-        vm.expectRevert(JobEscrow.InvalidWorker.selector);
-        escrow.createJob(address(0), arbiter, AMOUNT, "bad job");
+        uint256 jobId = escrow.createJob(address(0), address(0), AMOUNT, "open, no arbiter");
+        assertEq(escrow.getJob(jobId).worker, address(0));
+        assertEq(escrow.getJob(jobId).arbiter, address(0));
     }
 
     function test_RevertWhen_WorkerIsEmployerItself() public {
@@ -91,6 +107,85 @@ contract JobEscrowTest is Test {
         vm.prank(stranger); // stranger never approved the escrow contract
         vm.expectRevert();
         escrow.createJob(worker, arbiter, AMOUNT, "no allowance");
+    }
+
+    // ---- claimJob (acik is pazari) ----
+
+    function test_ClaimJob_SetsWorkerAndEmitsEvent() public {
+        uint256 jobId = _createOpenJob();
+
+        vm.expectEmit(true, true, false, false, address(escrow));
+        emit JobEscrow.JobClaimed(jobId, worker);
+
+        vm.prank(worker);
+        escrow.claimJob(jobId);
+
+        assertEq(escrow.getJob(jobId).worker, worker);
+    }
+
+    function test_ClaimJob_ThenApproveJob_PaysNewWorker() public {
+        uint256 jobId = _createOpenJob();
+
+        vm.prank(worker);
+        escrow.claimJob(jobId);
+
+        vm.prank(employer);
+        escrow.approveJob(jobId);
+
+        assertEq(usdc.balanceOf(worker), AMOUNT);
+        assertEq(uint8(escrow.getJob(jobId).status), uint8(JobEscrow.Status.Completed));
+    }
+
+    function test_ClaimJob_ThenRaiseDispute_Works() public {
+        uint256 jobId = _createOpenJob();
+
+        vm.prank(worker);
+        escrow.claimJob(jobId);
+
+        vm.prank(worker);
+        escrow.raiseDispute(jobId);
+
+        assertEq(uint8(escrow.getJob(jobId).status), uint8(JobEscrow.Status.Disputed));
+    }
+
+    function test_RevertWhen_ClaimingAlreadyClaimedJob() public {
+        uint256 jobId = _createOpenJob();
+
+        vm.prank(worker);
+        escrow.claimJob(jobId);
+
+        vm.prank(stranger);
+        vm.expectRevert(JobEscrow.JobNotOpen.selector);
+        escrow.claimJob(jobId);
+    }
+
+    function test_RevertWhen_ClaimingJobThatAlreadyHasAssignedWorker() public {
+        uint256 jobId = _createJob(); // worker onceden atanmis, acik degil
+
+        vm.prank(stranger);
+        vm.expectRevert(JobEscrow.JobNotOpen.selector);
+        escrow.claimJob(jobId);
+    }
+
+    function test_RevertWhen_ClaimingNonFundedJob() public {
+        uint256 jobId = _createOpenJob();
+
+        vm.prank(worker);
+        escrow.claimJob(jobId);
+        vm.prank(employer);
+        escrow.approveJob(jobId);
+
+        vm.prank(stranger);
+        vm.expectRevert(JobEscrow.JobNotFunded.selector);
+        escrow.claimJob(jobId);
+    }
+
+    function test_RevertWhen_EmployerClaimsOwnOpenJob() public {
+        uint256 jobId = _createOpenJob();
+
+        vm.prank(employer);
+        vm.expectRevert(JobEscrow.InvalidWorker.selector);
+        escrow.claimJob(jobId);
     }
 
     // ---- approveJob ----
