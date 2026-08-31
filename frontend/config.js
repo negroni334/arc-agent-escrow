@@ -1,4 +1,5 @@
 // Arc Testnet + deploy edilmis kontrat bilgileri
+// Bu dosya degistiginde Vercel otomatik olarak yeniden deploy eder (GitHub baglantisi).
 const CONFIG = {
   chainIdHex: "0x4cef52", // 5042002
   chainIdDec: 5042002,
